@@ -116,8 +116,10 @@ def generate_random_nonce():
 def generate_final_key(password):
     # 对密码进行迭代处理
     hashed = password.encode('utf-8')
-    for _ in range(1000):  # 进行1000次迭代
+    for i in range(1000):  # 进行1000次迭代
+        # 使用 SHA-256 对密码进行哈希处理
         hashed = hashlib.sha256(hashed).digest()
+        print(f"Iteration {i+1}: {hashed.hex()}")  # 显示每一次迭代的哈希值（可选）
     return hashed
 
 # --------------------------------------------------------
