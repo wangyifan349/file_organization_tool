@@ -1,22 +1,25 @@
 import struct
 
 def chacha20_block(key, counter, nonce):
+    def rotate(v, c):
+        return ((v << c) & 0xFFFFFFFF) | (v >> (32 - c))
+
     def quarter_round(x, a, b, c, d):
         x[a] = (x[a] + x[b]) & 0xFFFFFFFF
         x[d] ^= x[a]
-        x[d] = ((x[d] << 16) & 0xFFFFFFFF) | (x[d] >> 16)
+        x[d] = rotate(x[d], 16)
         
         x[c] = (x[c] + x[d]) & 0xFFFFFFFF
         x[b] ^= x[c]
-        x[b] = ((x[b] << 12) & 0xFFFFFFFF) | (x[b] >> 20)
+        x[b] = rotate(x[b], 12)
         
         x[a] = (x[a] + x[b]) & 0xFFFFFFFF
         x[d] ^= x[a]
-        x[d] = ((x[d] << 8) & 0xFFFFFFFF) | (x[d] >> 24)
+        x[d] = rotate(x[d], 8)
         
         x[c] = (x[c] + x[d]) & 0xFFFFFFFF
         x[b] ^= x[c]
-        x[b] = ((x[b] << 7) & 0xFFFFFFFF) | (x[b] >> 25)
+        x[b] = rotate(x[b], 7)
 
     constants = (0x61707865, 0x3320646E, 0x79622D32, 0x6B206574)
     key_words = struct.unpack('<8L', key)
@@ -29,7 +32,7 @@ def chacha20_block(key, counter, nonce):
         counter, nonce_words[0], nonce_words[#citation-1](citation-1), nonce_words[#citation-2](citation-2)
     ]
 
-    working_state = list(state)
+    working_state = state[:]
     for _ in range(10):
         quarter_round(working_state, 0, 4, 8, 12)
         quarter_round(working_state, 1, 5, 9, 13)
@@ -40,7 +43,12 @@ def chacha20_block(key, counter, nonce):
         quarter_round(working_state, 2, 7, 8, 13)
         quarter_round(working_state, 3, 4, 9, 14)
 
-    return b''.join(struct.pack('<L', (working_state[i] + state[i]) & 0xFFFFFFFF) for i in range(16))
+    output = bytearray()
+    for i in range(16):
+        result = (working_state[i] + state[i]) & 0xFFFFFFFF
+        output += struct.pack('<L', result)
+
+    return bytes(output)
 
 def chacha20_encrypt(key, nonce, plaintext):
     ciphertext = bytearray(plaintext)
