@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from bip_utils import Bip39MnemonicGenerator, Bip39SeedGenerator, Bip84, Bip84Coins
 import os
 import threading
 
@@ -102,9 +103,37 @@ def verify_signature(public_key, message, signature):
     except Exception:
         return False
 
+# Generate BIP84 Bitcoin address
+def generate_bip84_address():
+    def task():
+        try:
+            # Generate mnemonic
+            mnemonic = Bip39MnemonicGenerator().FromWordsNumber(24)
+            bip39_mnemonic_entry.delete("1.0", tk.END)
+            bip39_mnemonic_entry.insert(tk.END, mnemonic)
+
+            # Generate seed from mnemonic
+            seed = Bip39SeedGenerator(mnemonic).Generate()
+            bip84_result_text.delete("1.0", tk.END)
+            bip84_result_text.insert(tk.END, f"Seed: {seed.hex()}\n")
+
+            # Generate BIP84 context
+            bip84_ctx = Bip84.FromSeed(seed, Bip84Coins.BITCOIN)
+            bip84_acc = bip84_ctx.Purpose().Coin().Account(0).Change(False)
+
+            # Display multiple addresses
+            for i in range(5):
+                addr = bip84_acc.AddressIndex(i).PublicKey().ToAddress()
+                bip84_result_text.insert(tk.END, f"Address {i+1}: {addr}\n")
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+    
+    threading.Thread(target=task).start()
+
 # Show about information
 def show_about():
-    messagebox.showinfo("About", "Elliptic Curve Tool\nVersion 1.0\n\nThis tool demonstrates ECDH key exchange and digital signatures using elliptic curves.")
+    messagebox.showinfo("About", "Elliptic Curve Tool\nVersion 1.0\n\nThis tool demonstrates ECDH key exchange, digital signatures, and BIP84 Bitcoin address generation using elliptic curves.")
 
 # Main window setup
 root = tk.Tk()
@@ -155,6 +184,20 @@ ttk.Button(signature_frame, text="Sign and Verify", command=handle_signature).pa
 ttk.Label(signature_frame, text="Result:").pack(anchor='w', pady=5)
 signature_result_text = tk.Text(signature_frame, height=10, width=90)
 signature_result_text.pack(pady=5)
+
+# BIP84 Bitcoin Address tab setup
+bip84_frame = ttk.Frame(notebook, padding="10")
+notebook.add(bip84_frame, text="BIP84 Address")
+
+ttk.Label(bip84_frame, text="BIP39 Mnemonic:").pack(anchor='w', pady=5)
+bip39_mnemonic_entry = tk.Text(bip84_frame, height=5, width=90)
+bip39_mnemonic_entry.pack(pady=5)
+
+ttk.Button(bip84_frame, text="Generate BIP84 Address", command=generate_bip84_address).pack(pady=10)
+
+ttk.Label(bip84_frame, text="Result:").pack(anchor='w', pady=5)
+bip84_result_text = tk.Text(bip84_frame, height=10, width=90)
+bip84_result_text.pack(pady=5)
 
 # Run the main loop
 root.mainloop()
