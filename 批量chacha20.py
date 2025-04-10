@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from Crypto.Cipher import ChaCha20_Poly1305
 from Crypto.Random import get_random_bytes
+import hashlib
 
 # Encrypt a single file
 def encrypt_file(file_path, key):
@@ -49,30 +50,29 @@ def select_directory():
 # Perform operation in a separate thread
 def perform_operation(operation):
     directory = directory_var.get()
-    key_input = key_entry.get()
+    password_input = key_entry.get()
     if not directory:
         messagebox.showerror("Error", "Please select a directory.")
         return
-    if not key_input:
-        messagebox.showerror("Error", "Please enter a 32-byte key in hex.")
+    if not password_input:
+        messagebox.showerror("Error", "Please enter a password.")
         return
     try:
-        key = bytes.fromhex(key_input)
-        if len(key) != 32:
-            raise ValueError("Key must be 32 bytes long.")
+        # Use SHA-256 to convert the password to a 32-byte key
+        key = hashlib.sha256(password_input.encode()).digest()
         
         # Start a new thread for processing files
         thread = threading.Thread(target=process_files, args=(directory, key, operation))
         thread.start()
         thread.join()  # Wait for the thread to complete
         messagebox.showinfo("Success", f"Files have been {operation}ed successfully!")
-    except ValueError as ve:
-        messagebox.showerror("Error", str(ve))
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
 
 # Create main window
 root = tk.Tk()
 root.title("ChaCha20-Poly1305 File Encryptor/Decryptor")
-root.geometry("600x250")
+root.geometry("600x200")
 root.resizable(False, False)
 
 # Use ttk for a modern look
@@ -95,7 +95,7 @@ select_dir_button = ttk.Button(main_frame, text="Select Directory", command=sele
 select_dir_button.grid(row=0, column=2, padx=10, pady=5)
 
 # Key entry
-key_label = ttk.Label(main_frame, text="Enter 32-byte Key (in hex):")
+key_label = ttk.Label(main_frame, text="Enter Password:")
 key_label.grid(row=1, column=0, sticky='w', pady=5)
 key_entry = ttk.Entry(main_frame, width=40)
 key_entry.grid(row=1, column=1, pady=5, columnspan=2)
