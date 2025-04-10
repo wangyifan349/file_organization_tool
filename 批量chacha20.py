@@ -72,14 +72,14 @@ def perform_operation(operation):
 # Create main window
 root = tk.Tk()
 root.title("ChaCha20-Poly1305 File Encryptor/Decryptor")
-root.geometry("600x400")
+root.geometry("600x250")
 root.resizable(False, False)
 
 # Use ttk for a modern look
 style = ttk.Style()
-style.configure('TButton', font=('Helvetica', 12), padding=10)
-style.configure('TLabel', font=('Helvetica', 12))
-style.configure('TEntry', font=('Helvetica', 12))
+style.configure('TButton', font=('Helvetica', 10), padding=6)
+style.configure('TLabel', font=('Helvetica', 10))
+style.configure('TEntry', font=('Helvetica', 10))
 
 # Main frame
 main_frame = ttk.Frame(root, padding="10")
@@ -89,7 +89,7 @@ main_frame.pack(expand=True, fill='both')
 directory_var = tk.StringVar()
 directory_label = ttk.Label(main_frame, text="Selected Directory:")
 directory_label.grid(row=0, column=0, sticky='w', pady=5)
-directory_entry = ttk.Entry(main_frame, textvariable=directory_var, width=50)
+directory_entry = ttk.Entry(main_frame, textvariable=directory_var, width=40)
 directory_entry.grid(row=0, column=1, pady=5)
 select_dir_button = ttk.Button(main_frame, text="Select Directory", command=select_directory)
 select_dir_button.grid(row=0, column=2, padx=10, pady=5)
@@ -97,15 +97,15 @@ select_dir_button.grid(row=0, column=2, padx=10, pady=5)
 # Key entry
 key_label = ttk.Label(main_frame, text="Enter 32-byte Key (in hex):")
 key_label.grid(row=1, column=0, sticky='w', pady=5)
-key_entry = ttk.Entry(main_frame, width=50)
+key_entry = ttk.Entry(main_frame, width=40)
 key_entry.grid(row=1, column=1, pady=5, columnspan=2)
 
 # Create buttons
 button_frame = ttk.Frame(main_frame)
 button_frame.grid(row=2, column=0, columnspan=3, pady=20)
 
-encrypt_button = ttk.Button(button_frame, text="Encrypt Files", command=lambda: perform_operation('encrypt'))
-decrypt_button = ttk.Button(button_frame, text="Decrypt Files", command=lambda: perform_operation('decrypt'))
+encrypt_button = ttk.Button(button_frame, text="Encrypt Files", command=lambda: perform_operation('encrypt'), width=20)
+decrypt_button = ttk.Button(button_frame, text="Decrypt Files", command=lambda: perform_operation('decrypt'), width=20)
 
 encrypt_button.grid(row=0, column=0, padx=20)
 decrypt_button.grid(row=0, column=1, padx=20)
