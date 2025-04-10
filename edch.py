@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from ecdsa import SigningKey, SECP256k1
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
 import hashlib
 import base58
 import threading
@@ -19,15 +18,15 @@ def calculate_shared_secret(private_key_hex, public_key_hex):
     return hashlib.sha256(shared_secret.x().to_bytes(32, 'big')).digest()
 
 def encrypt_string(shared_secret, plaintext):
-    cipher = AES.new(shared_secret, AES.MODE_CBC)
-    ciphertext = cipher.iv + cipher.encrypt(pad(plaintext.encode(), AES.block_size))
-    return base58.b58encode(ciphertext).decode()
+    cipher = AES.new(shared_secret, AES.MODE_GCM)
+    ciphertext, tag = cipher.encrypt_and_digest(plaintext.encode())
+    return base58.b58encode(cipher.nonce + tag + ciphertext).decode()
 
 def decrypt_string(shared_secret, ciphertext_b58):
-    ciphertext = base58.b58decode(ciphertext_b58)
-    iv = ciphertext[:16]
-    cipher = AES.new(shared_secret, AES.MODE_CBC, iv)
-    plaintext = unpad(cipher.decrypt(ciphertext[16:]), AES.block_size)
+    data = base58.b58decode(ciphertext_b58)
+    nonce, tag, ciphertext = data[:16], data[16:32], data[32:]
+    cipher = AES.new(shared_secret, AES.MODE_GCM, nonce=nonce)
+    plaintext = cipher.decrypt_and_verify(ciphertext, tag)
     return plaintext.decode()
 
 def setup_gui():
@@ -71,7 +70,7 @@ def setup_gui():
 
     root = tk.Tk()
     root.title("Bitcoin Key Generator and Encrypt/Decrypt Tool")
-    root.geometry("700x500")
+    root.geometry("800x600")  # Increased width and height for better layout
 
     tab_control = ttk.Notebook(root)
 
@@ -83,36 +82,36 @@ def setup_gui():
     shared_secret_var = tk.StringVar()
 
     ttk.Label(key_tab, text="Private Key:").grid(column=0, row=0, padx=10, pady=10, sticky='w')
-    ttk.Entry(key_tab, textvariable=private_key_var, width=80).grid(column=1, row=0, padx=10, pady=10)
+    ttk.Entry(key_tab, textvariable=private_key_var, width=90).grid(column=1, row=0, padx=10, pady=10)
 
     ttk.Label(key_tab, text="Public Key:").grid(column=0, row=1, padx=10, pady=10, sticky='w')
-    ttk.Entry(key_tab, textvariable=public_key_var, width=80).grid(column=1, row=1, padx=10, pady=10)
+    ttk.Entry(key_tab, textvariable=public_key_var, width=90).grid(column=1, row=1, padx=10, pady=10)
 
     ttk.Button(key_tab, text="Generate Keys", command=generate_keys_action).grid(column=1, row=2, padx=10, pady=10, sticky='e')
 
     ttk.Label(key_tab, text="Enter Public Key for Shared Secret:").grid(column=0, row=3, padx=10, pady=10, sticky='w')
-    public_key_entry = ttk.Entry(key_tab, width=80)
+    public_key_entry = ttk.Entry(key_tab, width=90)
     public_key_entry.grid(column=1, row=3, padx=10, pady=10)
 
     ttk.Button(key_tab, text="Calculate Shared Secret", command=calculate_shared_secret_action).grid(column=1, row=4, padx=10, pady=10, sticky='e')
 
     ttk.Label(key_tab, text="Shared Secret:").grid(column=0, row=5, padx=10, pady=10, sticky='w')
-    ttk.Entry(key_tab, textvariable=shared_secret_var, width=80).grid(column=1, row=5, padx=10, pady=10)
+    ttk.Entry(key_tab, textvariable=shared_secret_var, width=90).grid(column=1, row=5, padx=10, pady=10)
 
     encrypt_tab = ttk.Frame(tab_control)
     tab_control.add(encrypt_tab, text='Encrypt/Decrypt')
 
-    plaintext_entry = tk.Text(encrypt_tab, width=80, height=5)
+    plaintext_entry = tk.Text(encrypt_tab, width=90, height=5)
     plaintext_entry.grid(column=1, row=0, padx=10, pady=10)
     ttk.Label(encrypt_tab, text="Plaintext:").grid(column=0, row=0, padx=10, pady=10, sticky='w')
 
     ciphertext_var = tk.StringVar()
-    ciphertext_entry = tk.Text(encrypt_tab, width=80, height=5)
+    ciphertext_entry = tk.Text(encrypt_tab, width=90, height=5)
     ciphertext_entry.grid(column=1, row=1, padx=10, pady=10)
     ttk.Label(encrypt_tab, text="Ciphertext:").grid(column=0, row=1, padx=10, pady=10, sticky='w')
 
     decrypted_text_var = tk.StringVar()
-    ttk.Entry(encrypt_tab, textvariable=decrypted_text_var, width=80).grid(column=1, row=2, padx=10, pady=10)
+    ttk.Entry(encrypt_tab, textvariable=decrypted_text_var, width=90).grid(column=1, row=2, padx=10, pady=10)
     ttk.Label(encrypt_tab, text="Decrypted Text:").grid(column=0, row=2, padx=10, pady=10, sticky='w')
 
     ttk.Button(encrypt_tab, text="Encrypt", command=encrypt_action).grid(column=1, row=3, padx=10, pady=10, sticky='e')
