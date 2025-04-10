@@ -22,6 +22,8 @@ def check_and_get_permissions(file_path: Path) -> bool:
         # 再次检查权限
         if os.access(file_path, os.R_OK | os.W_OK):
             return True
+    except PermissionError:
+        print(f"Permission denied: {file_path}. You might need to run as an administrator or use sudo.")
     except Exception as e:
         print(f"尝试获取权限失败 {file_path}: {e}")
     return False
