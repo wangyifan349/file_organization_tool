@@ -1,9 +1,3 @@
-"""
-该程序的主要目标是整理混乱的媒体文件，帮助用户高效地管理和分类各种媒体的文件。
-自动分类：程序能够自动识别并分类不同类型的媒体文件，如办公文档、图像、视频和音频文件。
-用户只需选择源目录，程序会根据文件类型将其整理到相应的目标目录中。
-"""
-
 import os
 import shutil
 import stat
@@ -30,21 +24,17 @@ def categorize_file(file_name):  # 根据扩展名归类文件
         if ext in extensions:  # 判断文件扩展名是否在当前分类中
             return category  # 返回文件类别
     return None  # 如果文件类型不在分类中，返回 None
-
 # -------------------- 收集文件函数 --------------------
 def gather_files(source_dir):  # 收集文件并分类
     file_count = defaultdict(int)  # 文件计数字典
     files_to_move = defaultdict(list)  # 文件路径字典
-
     for root, dirs, files in os.walk(source_dir):  # 遍历源目录中的文件
         for file in files:
             category = categorize_file(file)  # 获取文件类别
             if category:  # 如果文件属于指定类别
                 file_count[category] += 1  # 更新文件计数
                 files_to_move[category].append(os.path.join(root, file))  # 保存文件路径
-
     return file_count, files_to_move  # 返回文件计数和文件列表
-
 # -------------------- 调整权限函数 --------------------
 def adjust_permissions(path):  # 调整文件权限
     for root, dirs, files in os.walk(path):  # 遍历路径中的文件和目录
@@ -57,7 +47,6 @@ def adjust_permissions(path):  # 调整文件权限
                          stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH)
             except Exception as e:
                 print(f"无法调整 {full_path} 的权限: {e}")  # 出现异常时输出错误信息
-
 # -------------------- 计算文件哈希 --------------------
 def calculate_file_hash(filepath, hash_alg=hashlib.md5):  # 计算文件的哈希值
     h = hash_alg()  # 初始化哈希对象
@@ -68,7 +57,6 @@ def calculate_file_hash(filepath, hash_alg=hashlib.md5):  # 计算文件的哈�
                 break  # 如果读取完毕，则退出
             h.update(chunk)  # 更新哈希值
     return h.hexdigest()  # 返回计算出的哈希值
-
 # -------------------- 查找重复文件 --------------------
 def find_duplicate_files(directory, update_text):  # 查找重复文件
     files_hashmap = {}  # 哈希值字典
@@ -84,9 +72,7 @@ def find_duplicate_files(directory, update_text):  # 查找重复文件
     for hash_val, paths in files_hashmap.items():  # 遍历哈希字典
         if len(paths) > 1:  # 如果某个哈希值对应多个文件，说明是重复文件
             duplicates[hash_val] = paths  # 保存重复文件的路径
-
     return duplicates  # 返回重复文件字典
-
 # -------------------- 删除重复文件 --------------------
 def delete_selected_files(files_to_delete, update_text):  # 删除选择的重复文件
     deleted_count = 0  # 删除文件计数
@@ -95,8 +81,12 @@ def delete_selected_files(files_to_delete, update_text):  # 删除选择的重�
         update_text(f"删除重复文件: {filepath}")  # 更新文本框显示删除信息
         deleted_count += 1  # 增加删除计数
     return deleted_count  # 返回删除的文件数量
-
 # -------------------- 处理文件 --------------------
+def check_disk_space(dest_dir, file_size):  # 检查目标目录剩余空间
+    total, used, free = shutil.disk_usage(dest_dir)  # 获取磁盘使用情况
+    # 判断剩余空间是否至少大于文件大小+500MB
+    return free >= (file_size + 500 * 1024 * 1024)  # 500MB = 500 * 1024 * 1024 字节
+
 def process_file(src, dest_dir, operation, update_text):  # 处理文件：移动或复制
     try:
         base_name = os.path.basename(src)  # 获取文件名
@@ -106,6 +96,12 @@ def process_file(src, dest_dir, operation, update_text):  # 处理文件：移�
         while os.path.exists(dest):  # 如果目标路径已存在，则修改文件名
             dest = os.path.join(dest_dir, f"{name}_{counter}{ext}")
             counter += 1
+        
+        file_size = os.path.getsize(src)  # 获取文件大小
+        
+        if not check_disk_space(dest_dir, file_size):  # 检查剩余空间
+            update_text(f"目标目录 {dest_dir} 剩余空间不足，无法处理文件: {src}")
+            return  # 如果空间不足，则停止处理文件
         
         if operation == 'move':  # 移动文件
             shutil.move(src, dest)
@@ -141,7 +137,6 @@ def process_files(source_dirs, target_dir, operation, update_text):  # 处理多
     except Exception as e:
         error_message = f"文件操作过程中出错: {e}"  # 错误处理
         update_text(error_message)  # 更新文本框显示错误信息
-
 # -------------------- 重复文件处理函数 --------------------
 def handle_duplicates(directory, update_text):  # 处理重复文件
     update_text("正在寻找重复文件，请稍候...")  # 提示正在查找
@@ -296,7 +291,6 @@ class FileOrganizerApp:
             target=handle_duplicates,  # 启动一个线程来查找并处理重复文件
             args=(self.duplicate_directory, lambda msg: self.update_text(self.dup_text_edit, msg))
         ).start()  # 启动线程
-
 # -------------------- 程序入口 --------------------
 if __name__ == '__main__':
     root = tk.Tk()
