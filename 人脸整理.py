@@ -1,3 +1,7 @@
+"""
+这个程序使用人脸识别技术在给定目录中查找与参考图像相似的人脸，并允许用户选择将这些相似图像复制或移动到指定目录。
+This program uses facial recognition technology to find faces similar to a reference image within a given directory and allows the user to copy or move these similar images to a specified directory.
+"""
 import os
 import shutil
 import face_recognition
@@ -15,7 +19,7 @@ def find_similar_images(reference_image_path, directory_path, threshold=0.6):
     if not reference_encodings:
         print("No face detected in the reference image.")
         return []
-    # List to store paths of similar images
+    # List to store paths of similar images and their similarity scores
     similar_images = []
     # Traverse the target directory for images
     for root, dirs, files in os.walk(directory_path):
@@ -41,15 +45,13 @@ def find_similar_images(reference_image_path, directory_path, threshold=0.6):
                 for reference_encoding in reference_encodings:
                     # Calculate the Euclidean distance
                     distance = face_recognition.face_distance([reference_encoding], current_encoding)[0]
-                    # Record the image if similarity is within the threshold
+                    # Record the image and similarity score if within the threshold
                     if distance < threshold:
-                        similar_images.append(image_path)
+                        similar_images.append((image_path, distance))
+                        print(f"Similar Image found: {image_path}, Similarity Score: {distance}")
                         break
-    # Sort images alphabetically for consistency
-    similar_images.sort()
-    # Output results
-    for image_path in similar_images:
-        print(f"Similar Image found: {image_path}")
+    # Sort images by similarity score for consistency
+    similar_images.sort(key=lambda x: x[1])
     return similar_images
 # ----------------- Move or Copy Images -----------------
 def move_or_copy_images_to_directory(image_paths, output_directory, operation='copy'):
@@ -57,7 +59,7 @@ def move_or_copy_images_to_directory(image_paths, output_directory, operation='c
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     # Move or copy each image to the new directory
-    for image_path in image_paths:
+    for image_path, _ in image_paths:
         try:
             if operation == 'move':
                 shutil.move(image_path, output_directory)
@@ -71,8 +73,12 @@ def move_or_copy_images_to_directory(image_paths, output_directory, operation='c
 reference_image_path = 'path_to_reference_image.jpg'
 directory_path = 'path_to_image_directory'
 similar_images = find_similar_images(reference_image_path, directory_path)
-# Prompt the user to enter a directory to move or copy similar images
+# Summary of similar images found
+print("\nSummary of similar images:")
+for image_path, score in similar_images:
+    print(f"Image: {image_path}, Similarity Score: {score}")
+# If needed, prompt the user to enter a directory to move or copy similar images
 if similar_images:
-    action = input("Would you like to copy or move these images? (copy/move): ").strip().lower()
+    action = input("\nWould you like to copy or move these images? (copy/move): ").strip().lower()
     output_directory = input("Please enter the path to the output directory: ").strip()
     move_or_copy_images_to_directory(similar_images, output_directory, operation=action)
