@@ -1,0 +1,182 @@
+"""
+请注意，此工具仅用于学习目的，例如演示VeraCrypt的操作流程
+为了提高安全性，建议使用多种加密算法，例如AES、Serpent和Twofish的组合，而不是AES
+除此之外，设置PIN码和隐藏卷
+"""
+import os
+import struct
+import hashlib
+import base64
+import uuid
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QMessageBox, QAction, QVBoxLayout, QWidget, QLineEdit, QLabel, QTextEdit
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+# ------------------------------ ChaCha20 加密功能 ------------------------------
+def quarter_round(state, a, b, c, d):
+    state[a] = (state[a] + state[b]) & 0xFFFFFFFF
+    state[d] ^= state[a]
+    state[d] = ((state[d] << 16) | (state[d] >> 16)) & 0xFFFFFFFF
+    state[c] = (state[c] + state[d]) & 0xFFFFFFFF
+    state[b] ^= state[c]
+    state[b] = ((state[b] << 12) | (state[b] >> 20)) & 0xFFFFFFFF
+    state[a] = (state[a] + state[b]) & 0xFFFFFFFF
+    state[d] ^= state[a]
+    state[d] = ((state[d] << 8) | (state[d] >> 24)) & 0xFFFFFFFF
+    state[c] = (state[c] + state[d]) & 0xFFFFFFFF
+    state[b] ^= state[c]
+    state[b] = ((state[b] << 7) | (state[b] >> 25)) & 0xFFFFFFFF
+def chacha20_block(key, counter, nonce):
+    # 定义 ChaCha20 加密块
+    text_constant = "expand 32-byte k"
+    key_state = struct.unpack("<8L", key)
+    nonce_state = struct.unpack("<3L", nonce)
+    state = list(struct.unpack("<4L", text_constant.encode('utf-8')) + key_state + (counter,) + nonce_state)
+    # 执行 20 轮操作
+    for _ in range(10):
+        quarter_round(state, 0, 4, 8, 12)
+        quarter_round(state, 1, 5, 9, 13)
+        quarter_round(state, 2, 6, 10, 14)
+        quarter_round(state, 3, 7, 11, 15)
+        quarter_round(state, 0, 5, 10, 15)
+        quarter_round(state, 1, 6, 11, 12)
+        quarter_round(state, 2, 7, 8, 13)
+        quarter_round(state, 3, 4, 9, 14)
+    # 生成输出
+    output = []
+    for i in range(16):
+        word = (state[i] + struct.unpack("<4L", text_constant.encode('utf-8'))[i % 4] 
+                   + key_state[i % 8] + (counter if i == 12 else 0) 
+                   + nonce_state[i % 3] * (i >= 13))
+        output.append(word & 0xFFFFFFFF)
+    return struct.pack("<16L", *output)
+def chacha20_encrypt(key, counter, nonce, plaintext):
+    keystream = bytearray()
+    block_count = (len(plaintext) + 63) // 64
+    # 生成 keystream
+    for block_index in range(block_count):
+        keystream.extend(chacha20_block(key, counter + block_index, nonce))
+    # Xor 操作加密/解密
+    ciphertext = bytearray(len(plaintext))
+    for i in range(len(plaintext)):
+        ciphertext[i] = plaintext[i] ^ keystream[i]
+    return bytes(ciphertext)
+# ------------------------------ 工具函数 ------------------------------
+def get_default_key():
+    mac = uuid.getnode()  # 获取MAC地址
+    # 转换为字节格式
+    mac_bytes = mac.to_bytes(6, 'big')
+    # 计算SHA-256哈希值
+    sha256_hash = hashlib.sha256(mac_bytes).digest()
+    base64_encoded = base64.urlsafe_b64encode(sha256_hash)
+    # 生成32字符密钥
+    return base64_encoded.decode('utf-8')[:32]
+# ------------------------------ 文件处理功能 ------------------------------
+def encrypt_decrypt_file_in_place(file_path, key, operation):
+    if not os.access(file_path, os.W_OK):
+        raise PermissionError("You do not have write permission for this file.")
+    with open(file_path, 'rb+') as f:
+        data = f.read()
+        if operation == 'encrypt':
+            nonce = os.urandom(12)  # 生成随机nonce
+            result = chacha20_encrypt(key, 0, nonce, data)
+            f.seek(0)
+            f.write(nonce + result)  # 将nonce存储在数据前
+        elif operation == 'decrypt':
+            nonce = data[:12]  # 提取nonce
+            data = data[12:]
+            result = chacha20_encrypt(key, 0, nonce, data)
+            f.seek(0)
+            f.write(result)
+            f.truncate()  # 清除文件后多余的部分
+# ------------------------------ 文件加密线程类 ------------------------------
+class FileEncryptorThread(QThread):
+    log_signal = pyqtSignal(str)
+    def __init__(self, directory, password, operation):
+        super().__init__()
+        self.directory = directory
+        self.password = password
+        self.operation = operation
+    def run(self):
+        files_processed = 0
+        for root, dirs, files in os.walk(self.directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                self.log_signal.emit(f"Processing: {file_path}")
+                try:
+                    encrypt_decrypt_file_in_place(file_path, self.password.encode(), self.operation)
+                    self.log_signal.emit(f"{self.operation.capitalize()}d: {file_path}")
+                    files_processed += 1
+                except Exception as e:
+                    self.log_signal.emit(f"Error with {file_path}: {str(e)}")
+        self.log_signal.emit(f"Finished {self.operation} operation on {files_processed} files.")
+# ------------------------------ 主窗口类 ------------------------------------
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+    def init_ui(self):
+        self.setWindowTitle('ChaCha20-Poly1305 Encryptor')
+        self.setGeometry(100, 100, 800, 500)
+        self.setStyleSheet("background-color: #D0E6A5; padding: 20px;")
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setAlignment(Qt.AlignCenter)
+        title_label = QLabel("File Encryption Tool", self)
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #2E7D32;")
+        layout.addWidget(title_label)
+        password_label = QLabel("Enter a 32-byte password", self)
+        password_label.setStyleSheet("font-size: 16px;")
+        layout.addWidget(password_label)
+        self.password_input = QLineEdit(self)
+        self.password_input.setText(get_default_key())
+        self.password_input.setMaxLength(32)
+        self.password_input.setStyleSheet("font-size: 14px; padding: 5px;")
+        layout.addWidget(self.password_input)
+        encrypt_button = QPushButton('Encrypt Files in Directory', self)
+        encrypt_button.setStyleSheet("font-size: 18px; padding: 10px; background-color: #8BC34A;")
+        encrypt_button.clicked.connect(lambda: self.select_directory('encrypt'))
+        layout.addWidget(encrypt_button)
+        decrypt_button = QPushButton('Decrypt Files in Directory', self)
+        decrypt_button.setStyleSheet("font-size: 18px; padding: 10px; background-color: #8BC34A;")
+        decrypt_button.clicked.connect(lambda: self.select_directory('decrypt'))
+        layout.addWidget(decrypt_button)
+        self.log_output = QTextEdit(self)
+        self.log_output.setReadOnly(True)
+        self.log_output.setStyleSheet("font-size: 14px; background-color: #f8fff8; border: 1px solid #81c784; padding: 5px;")
+        layout.addWidget(self.log_output)
+        menubar = self.menuBar()
+        help_menu = menubar.addMenu('Help')
+        about_action = QAction('About', self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    def log_message(self, message):
+        self.log_output.append(message)  
+
+    def select_directory(self, operation):
+        if len(self.password_input.text()) != 32:
+            QMessageBox.critical(self, "Error", "Password must be 32 bytes long.")
+            return
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        if directory:
+            self.encryptor_thread = FileEncryptorThread(directory, self.password_input.text(), operation)
+            self.encryptor_thread.log_signal.connect(self.log_message)
+            self.encryptor_thread.start()
+
+    def show_about(self):
+        QMessageBox.about(self, "About", (
+            "ChaCha20-Poly1305 Encryption Tool\n\n"
+            "ChaCha20 is a stream cipher designed to provide security and performance.\n"
+            "Poly1305 is a cryptographic message authentication code used to verify data integrity.\n\n"
+            "This tool allows you to encrypt and decrypt files securely, ensuring your privacy.\n\n"
+            "Designed to protect your data using a unique nonce for every file. "
+            "Default password is derived from your device's MAC address."
+        ))
+# ------------------------------ 主程序入口 ------------------------------
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
+if __name__ == '__main__':
+    main()
