@@ -1,7 +1,5 @@
 """
-请注意，此工具仅用于学习目的，例如演示VeraCrypt的操作流程
-为了提高安全性，建议使用多种加密算法，例如AES、Serpent和Twofish的组合，而不是AES
-除此之外，设置PIN码和隐藏卷
+请注意，此工具仅用于学习目的
 """
 import os
 import struct
