@@ -93,25 +93,31 @@ def decrypt_with_keys(file_path, keys):
 def process_directory(directory, db_file_path, encrypt=True):
     # 初始化数据库
     initialize_db(db_file_path)
-    # 处理指定目录中的所有文件
+    encryption_key = None
     if encrypt:
         encryption_key = generate_key()
-        write_key_to_db(db_file_path, encryption_key)
-    else:
-        encryption_key = None
-        keys = read_keys_from_db(db_file_path)
     failed_files = []
+    success = True
+    # 处理指定目录中的所有文件
     for root, dirs, files in os.walk(directory):
         for filename in files:
             file_path = os.path.join(root, filename)
             if encrypt:
-                encrypt_file(file_path, encryption_key)
+                try:
+                    encrypt_file(file_path, encryption_key)
+                except Exception as e:
+                    print(f"Error encrypting {file_path}: {e}")
+                    failed_files.append(file_path)
+                    success = False
             else:
-                if not decrypt_with_keys(file_path, keys):
+                if not decrypt_with_keys(file_path, read_keys_from_db(db_file_path)):
                     print(f"Decryption failed for: {file_path}")
                     failed_files.append(file_path)
+    if success and encrypt:
+        # 如果加密成功，写入密钥
+        write_key_to_db(db_file_path, encryption_key)
     if failed_files:
-        print("The following files failed to decrypt:")
+        print("The following files failed:")
         for file in failed_files:
             print(file)
 # ------------------------------
