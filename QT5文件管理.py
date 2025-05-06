@@ -38,12 +38,12 @@ class FileOperationWorker(QObject):
             try:
                 if self.action == 'move':
                     shutil.move(file_path, destination_file_path)
-                    self.progress.emit(f"Moved: {file_path}")
+                    self.progress.emit(f"Moved: {file_path} to {destination_file_path}")
                 else:
                     shutil.copy2(file_path, destination_file_path)
-                    self.progress.emit(f"Copied: {file_path}")
+                    self.progress.emit(f"Copied: {file_path} to {destination_file_path}")
             except Exception as e:
-                self.progress.emit(f"Error with {file_path}: {str(e)}")
+                self.progress.emit(f"Error processing {file_path}: {str(e)}")
 
         self.finished.emit("File operation completed successfully!")
 
@@ -54,7 +54,7 @@ class MediaFileManager(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Media File Manager")
-        self.setGeometry(100, 100, 450, 150)
+        self.setGeometry(100, 100, 500, 250)
 
         layout = QVBoxLayout()
 
@@ -75,26 +75,42 @@ class MediaFileManager(QWidget):
         # Set stylesheet for the application
         self.setStyleSheet("""
             QWidget {
-                background-color: #f0f0f0;
+                background-color: #f7f7f7;
+                font-family: 'Arial';
             }
             QPushButton {
                 background-color: #007BFF;
                 color: white;
+                border: none;
                 border-radius: 5px;
-                padding: 8px;
+                padding: 8px 16px;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #003f7f;
             }
             QLabel {
                 font-size: 14px;
                 color: #333;
             }
             QComboBox {
-                border: 1px solid #aaa;
+                border: 1px solid #007BFF;
                 border-radius: 5px;
                 padding: 5px;
+                font-size: 14px;
+            }
+            QComboBox QAbstractItemView {
+                border: 1px solid #007BFF;
+                selection-background-color: #007BFF;
+                selection-color: #fff;
+            }
+            QMessageBox {
+                background-color: #f0f0f0;
+                font-size: 14px;
+                color: #333;
             }
         """)
 
@@ -118,11 +134,11 @@ class MediaFileManager(QWidget):
 
     def find_media_files(self, root_directory):
         media_files = []
-        for directory_path, _, file_names in os.walk(root_directory):
+        for current_directory, _, file_names in os.walk(root_directory):
             for file_name in file_names:
-                _, file_extension = os.path.splitext(file_name)
+                file_name_without_extension, file_extension = os.path.splitext(file_name)
                 if file_extension.lower() in VIDEO_FORMATS or file_extension.lower() in IMAGE_FORMATS:
-                    file_path = os.path.join(directory_path, file_name)
+                    file_path = os.path.join(current_directory, file_name)
                     media_files.append(file_path)
         return media_files
 
@@ -152,8 +168,8 @@ class MediaFileManager(QWidget):
 
 def main():
     app = QApplication(sys.argv)
-    ex = MediaFileManager()
-    ex.show()
+    ui = MediaFileManager()
+    ui.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
