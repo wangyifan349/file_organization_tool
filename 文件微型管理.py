@@ -126,7 +126,7 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 
-
+auth.html
 <!doctype html>
 <html lang="en">
 <head>
@@ -356,7 +356,7 @@ if __name__ == '__main__':
 
 
 
-
+files.html
 <!doctype html>
 <html lang="en">
 <head>
