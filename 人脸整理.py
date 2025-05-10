@@ -5,80 +5,77 @@ This program uses facial recognition technology to find faces similar to a refer
 import os
 import shutil
 import face_recognition
-# ----------------- Find Similar Images -----------------
-def find_similar_images(reference_image_path, directory_path, threshold=0.6):
-    # Load and encode the reference image
-    try:
-        reference_image = face_recognition.load_image_file(reference_image_path)
-    except Exception as e:
-        print(f"Error loading the reference image: {e}")
-        return []
-    # Extract facial encodings from the reference image
+# ----------------- 查找和比较所有面孔 -----------------
+def find_and_compare_faces(reference_image_path, directory_path, threshold=0.6):
+    # 载入并编码参考图像
+    reference_image = face_recognition.load_image_file(reference_image_path)
+    # 提取参考图像中的面孔编码
     reference_encodings = face_recognition.face_encodings(reference_image)
-    # Check if any faces were detected in the reference image
+    # 检查参考图像中是否检测到面孔
     if not reference_encodings:
-        print("No face detected in the reference image.")
+        print("在参考图像中未检测到面孔。")
         return []
-    # List to store paths of similar images and their similarity scores
-    similar_images = []
-    # Traverse the target directory for images
+    # 保存相似图像路径及相似度得分的列表
+    all_faces_distances = []
+    # 遍历目标目录中的图像文件
     for root, dirs, files in os.walk(directory_path):
         for file in files:
-            # Process only image files
+            # 过滤掉非图像文件
             if not file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
                 continue
+            # 获取完整图像路径
             image_path = os.path.join(root, file)
-            # Attempt to load each image file
-            try:
-                current_image = face_recognition.load_image_file(image_path)
-            except Exception as e:
-                print(f"Error loading image {image_path}: {e}")
-                continue
-            # Extract facial encodings from the current image
+            # 载入当前图像文件
+            current_image = face_recognition.load_image_file(image_path)
+            # 提取当前图像中的面孔编码
             current_encodings = face_recognition.face_encodings(current_image)
-            # Skip if no faces are detected in the current image
+            # 跳过没有检测到面孔的图像
             if not current_encodings:
-                print(f"No face detected in image: {image_path}, skipping.")
+                print(f"在图像中未检测到面孔: {image_path}，跳过。")
                 continue
-            # Compare each face encoding in the current image to the reference encodings
+            # 比较当前图像中的每个面孔编码与参考编码
             for current_encoding in current_encodings:
                 for reference_encoding in reference_encodings:
-                    # Calculate the Euclidean distance
+                    # 计算欧式距离
                     distance = face_recognition.face_distance([reference_encoding], current_encoding)[0]
-                    # Record the image and similarity score if within the threshold
+                    # 记录图片和相似度得分
+                    all_faces_distances.append((image_path, distance)
+                    # 如果距离低于阈值，输出结果
                     if distance < threshold:
-                        similar_images.append((image_path, distance))
-                        print(f"Similar Image found: {image_path}, Similarity Score: {distance}")
-                        break
-    # Sort images by similarity score for consistency
-    similar_images.sort(key=lambda x: x[1])
-    return similar_images
-# ----------------- Move or Copy Images -----------------
+                        print(f"在 {image_path} 中找到相似面孔， 相似度得分: {distance}")
+    # 按相似度得分对结果排序
+    all_faces_distances.sort(key=lambda x: x[#citation-1](citation-1))
+    return all_faces_distances
+# ----------------- 移动或复制图像到目录 -----------------
 def move_or_copy_images_to_directory(image_paths, output_directory, operation='copy'):
-    # Create the directory if it does not exist
+    # 如果目标目录不存在，则创建
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
-    # Move or copy each image to the new directory
+    # 对每张图像进行移动或复制
     for image_path, _ in image_paths:
-        try:
-            if operation == 'move':
-                shutil.move(image_path, output_directory)
-                print(f"Moved {image_path} to {output_directory}")
-            elif operation == 'copy':
-                shutil.copy(image_path, output_directory)
-                print(f"Copied {image_path} to {output_directory}")
-        except Exception as e:
-            print(f"Error moving/copying {image_path}: {e}")
-# ----------------- Example Usage -----------------
+        if operation == 'move':
+            shutil.move(image_path, output_directory)
+            print(f"已移动 {image_path} 到 {output_directory}")
+        elif operation == 'copy':
+            shutil.copy(image_path, output_directory)
+            print(f"已复制 {image_path} 到 {output_directory}")
+# ----------------- 示例使用 -----------------
+# 参考图像路径
 reference_image_path = 'path_to_reference_image.jpg'
+# 图像目录路径
 directory_path = 'path_to_image_directory'
-similar_images = find_similar_images(reference_image_path, directory_path)
-# Summary of similar images found
-print("\nSummary of similar images:")
-for image_path, score in similar_images:
-    print(f"Image: {image_path}, Similarity Score: {score}")
-# If needed, prompt the user to enter a directory to move or copy similar images
-if similar_images:
-    action = input("\nWould you like to copy or move these images? (copy/move): ").strip().lower()
-    output_directory = input("Please enter the path to the output directory: ").strip()
-    move_or_copy_images_to_directory(similar_images, output_directory, operation=action)
+# 找到相似面孔
+similar_faces_data = find_and_compare_faces(reference_image_path, directory_path)
+# 打印所有面孔的详细相似度报告
+print("\n详细相似度报告（按相似度得分排序）:")
+for image_path, score in similar_faces_data:
+    print(f"图像: {image_path}, 相似度得分: {score}")
+# 如果需要，询问用户是否希望移动或复制这些相似图像
+if similar_faces_data:
+    action = input("\n您希望复制或移动这些图像吗？（copy/move）：").strip().lower()
+    # 确保用户输入正确的操作类型
+    if action in ['copy', 'move']:
+        output_directory = input("请输入输出目录路径：").strip()
+        move_or_copy_images_to_directory(similar_faces_data, output_directory, operation=action)
+    else:
+        print("无效操作。请重新运行脚本并选择 'copy' 或 'move'。")
