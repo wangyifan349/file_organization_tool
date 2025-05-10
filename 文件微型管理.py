@@ -576,8 +576,62 @@ if __name__ == '__main__':
                     });
             }
 
-            // Context Menu Operations (Rename, Delete, etc.)
-            // ...
+            // Context Menu Operations
+            // Right-click to show context menu
+            document.getElementById('file-list').addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                const { clientX: mouseX, clientY: mouseY } = e;
+                contextMenu.style.top = `${mouseY}px`;
+                contextMenu.style.left = `${mouseX}px`;
+                contextMenu.style.display = 'block';
+                currentFile = e.target.closest('li') ? e.target.closest('li').getAttribute('data-name') : "";
+            });
+
+            // Hide context menu on click elsewhere
+            document.addEventListener('click', function() {
+                contextMenu.style.display = 'none';
+            });
+
+            // File upload via context menu
+            document.getElementById('upload-file-btn').addEventListener('click', function() {
+                contextMenu.style.display = 'none';
+                fileInput.click();
+            });
+
+            // Rename file
+            document.getElementById('rename-file-btn').addEventListener('click', function() {
+                contextMenu.style.display = 'none';
+                const newName = prompt("Enter new name for the file:", currentFile);
+                if (newName) {
+                    fetch(`/rename/{{ username }}/${currentDir}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ old_name: currentFile, new_name: newName })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.success ? 'File renamed successfully!' : (data.error || 'Rename failed'));
+                        if (data.success) window.location.reload();
+                    });
+                }
+            });
+
+            // Delete file
+            document.getElementById('delete-file-btn').addEventListener('click', function() {
+                contextMenu.style.display = 'none';
+                if (confirm("Are you sure you want to delete " + currentFile + "?")) {
+                    fetch(`/delete/{{ username }}/${currentDir}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: currentFile })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.success ? 'File deleted successfully!' : (data.error || 'Delete failed'));
+                        if (data.success) window.location.reload();
+                    });
+                }
+            });
 
             // Drag and Drop Functionality
             document.querySelectorAll('#file-list li').forEach(function(item) {
@@ -597,7 +651,7 @@ if __name__ == '__main__':
                     const destDirName = dir.getAttribute('data-name');
                     const srcPath = `${currentDir}/${srcFileName}`;
                     const destPath = `${currentDir}/${destDirName}/${srcFileName}`;
-                    
+
                     fetch(`/move/{{ username }}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -614,8 +668,3 @@ if __name__ == '__main__':
     </script>
 </body>
 </html>
-
-
-
-
-
