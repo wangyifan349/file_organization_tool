@@ -1,3 +1,12 @@
+schema.sql
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL
+);
+
+
+
 from flask import Flask, request, redirect, url_for, send_from_directory, jsonify, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
