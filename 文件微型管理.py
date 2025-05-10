@@ -352,3 +352,270 @@ if __name__ == '__main__':
 </script>
 </body>
 </html>
+
+
+
+
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure File Management for {{ username }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <style>
+        body { overflow: hidden; }
+        
+        ul { 
+            list-style-type: none; 
+            padding: 0; 
+            margin-top: 20px; 
+        }
+        
+        li { 
+            margin: 5px 0; 
+            cursor: pointer; 
+            padding: 10px; 
+            border-radius: 5px; 
+            transition: background-color 0.2s; 
+        }
+        
+        li:hover { background-color: #f1f1f1; }
+
+        #context-menu { 
+            display: none; 
+            position: absolute; 
+            background: #ffffff; 
+            border: 1px solid #ccc; 
+            z-index: 1000; 
+        }
+        
+        #context-menu a { 
+            display: block; 
+            padding: 10px; 
+            text-decoration: none; 
+            color: black; 
+        }
+        
+        #context-menu a:hover { background-color: #e9ecef; }
+        
+        #password-input { 
+            position: fixed; 
+            top: 10px; 
+            right: 10px; 
+            z-index: 1000; 
+        }
+        
+        .file-list-container { 
+            max-height: 80vh; 
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Password Input Field for Encryption/Decryption -->
+    <div id="password-input">
+        <input type="password" id="encryption-password" placeholder="Enter encryption password" class="form-control" aria-label="encryption-password">
+    </div>
+
+    <div class="container-fluid py-3">
+
+        <!-- Page Title -->
+        <h2 class="text-center">Files and Directories for {{ username }}</h2>
+
+        <div class="row">
+
+            <!-- File List Section -->
+            <div class="col-12 file-list-container">
+                <ul id="file-list" class="bg-white shadow-sm p-3 mb-5">
+                    {% for item in files %}
+                        <li class="{{ 'directory' if item.is_dir else 'file' }}" 
+                            data-name="{{ item.name }}" 
+                            data-type="{{ 'dir' if item.is_dir else 'file' }}" 
+                            draggable="true" 
+                            title="{{ item.name }}">
+                            
+                            {% if item.is_dir %}
+                                <span><i class="bi bi-folder-fill"></i> </span>
+                                <a href="{{ url_for('files', username=username, subpath=os.path.join(subpath, item.name)) }}">{{ item.name }}/</a>
+                            {% else %}
+                                <span><i class="bi bi-file-earmark"></i> </span>
+                                <a href="#" onclick="downloadFile('{{ item.name }}')">{{ item.name }}</a>
+                            {% endif %}
+                            
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu for File Operations -->
+    <div id="context-menu">
+        <a href="#" id="upload-file-btn">Upload File</a>
+        <a href="#" id="rename-file-btn">Rename</a>
+        <a href="#" id="delete-file-btn">Delete</a>
+    </div>
+
+    <!-- Hidden File Input Element for Uploads -->
+    <input type="file" id="file-upload" style="display: none;">
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // DOM Elements
+            const contextMenu = document.getElementById('context-menu');
+            const fileInput = document.getElementById('file-upload');
+            const passwordInput = document.getElementById('encryption-password');
+            let currentFile = "";
+            let currentDir = "{{ subpath }}";
+
+            // Encrypt file using password
+            function encryptFile(file, password) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const wordArray = CryptoJS.lib.WordArray.create(reader.result);
+                        const encrypted = CryptoJS.AES.encrypt(wordArray, password).toString();
+                        resolve(encrypted);
+                    };
+                    reader.onerror = function() {
+                        reject("Failed to encrypt file");
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            // Decrypt file using password
+            function decryptFile(encryptedData, password) {
+                try {
+                    const decrypted = CryptoJS.AES.decrypt(encryptedData, password);
+                    const typedArray = new Uint8Array(decrypted.sigBytes);
+                    decrypted.words.forEach((word, idx) => {
+                        typedArray[idx * 4] = (word >> 24) & 0xff;
+                        typedArray[idx * 4 + 1] = (word >> 16) & 0xff;
+                        typedArray[idx * 4 + 2] = (word >> 8) & 0xff;
+                        typedArray[idx * 4 + 3] = word & 0xff;
+                    });
+                    return new Blob([typedArray]);
+                } catch (error) {
+                    alert("Failed to decrypt file with the provided password.");
+                    return null;
+                }
+            }
+
+            // Handle file upload with encryption
+            fileInput.addEventListener('change', async function() {
+                const file = fileInput.files[0];
+                if (file) {
+                    const password = passwordInput.value;
+                    if (!password) {
+                        alert("Please enter a password for encryption.");
+                        return;
+                    }
+
+                    try {
+                        const encryptedData = await encryptFile(file, password);
+                        const formData = new FormData();
+                        formData.append('file', new Blob([encryptedData], { type: 'text/plain' }), file.name);
+
+                        fetch(`/upload/{{ username }}/${currentDir}`, {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            alert(data.success ? 'File uploaded and encrypted successfully!' : (data.error || 'Upload failed'));
+                            if (data.success) window.location.reload();
+                        });
+                    } catch (error) {
+                        alert(error);
+                    }
+                }
+            });
+
+            // Handle file downloads with decryption
+            async function downloadFile(filename) {
+                const password = passwordInput.value;
+                if (!password) {
+                    alert("Please enter a password for decryption.");
+                    return;
+                }
+
+                fetch(`/download/{{ username }}/${currentDir}/${filename}`)
+                    .then(response => response.text())
+                    .then(encryptedData => {
+                        const decryptedBlob = decryptFile(encryptedData, password);
+
+                        if (decryptedBlob) {
+                            // Download decrypted file
+                            const url = URL.createObjectURL(decryptedBlob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                        } else {
+                            // If decryption failed, save the encrypted file
+                            alert("Error occurred during file decryption. The encrypted file will be saved.");
+                            const blob = new Blob([encryptedData], { type: 'text/plain' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename + ".enc";
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                        }
+                    });
+            }
+
+            // Context Menu Operations (Rename, Delete, etc.)
+            // ...
+
+            // Drag and Drop Functionality
+            document.querySelectorAll('#file-list li').forEach(function(item) {
+                item.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', item.getAttribute('data-name'));
+                });
+            });
+
+            document.querySelectorAll('#file-list .directory').forEach(function(dir) {
+                dir.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                });
+
+                dir.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    const srcFileName = e.dataTransfer.getData('text/plain');
+                    const destDirName = dir.getAttribute('data-name');
+                    const srcPath = `${currentDir}/${srcFileName}`;
+                    const destPath = `${currentDir}/${destDirName}/${srcFileName}`;
+                    
+                    fetch(`/move/{{ username }}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ src_path: srcPath, dest_path: destPath })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.success ? 'File moved successfully!' : (data.error || 'Move failed'));
+                        if (data.success) window.location.reload();
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
