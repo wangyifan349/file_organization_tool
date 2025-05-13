@@ -1,3 +1,10 @@
+"""
+pip install tk
+或
+sudo apt update
+sudo apt install python3 python3-tk
+"""
+
 import os
 import shutil
 import hashlib
