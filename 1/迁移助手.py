@@ -17,6 +17,7 @@ FOLDER_MAP = {
     'videos': VIDEO_EXTENSIONS,
     'office': OFFICE_EXTENSIONS
 }
+
 # ------------------------------------
 # 计算文件的哈希值
 def calculate_hash(file_path):
@@ -28,28 +29,29 @@ def calculate_hash(file_path):
                 break
             hash_algo.update(chunk)
     return hash_algo.hexdigest()
+
 # ------------------------------------
 # 查找目录中的重复文件
 def find_duplicates(directory):
     files_hash = {}
-    duplicates = []
+    duplicate_files = []
 
-    for root_dir, _, files in os.walk(directory):
+    for root_dir, sub_dirs, files in os.walk(directory):
         for file in files:
             file_path = os.path.join(root_dir, file)
             file_hash = calculate_hash(file_path)
 
             if file_hash in files_hash:
-                duplicates.append((file_path, file_hash))
+                duplicate_files.append((file_path, file_hash))
             else:
                 files_hash[file_hash] = file_path
 
-    return files_hash, duplicates
+    return files_hash, duplicate_files
 
 # ------------------------------------
 # 删除重复文件，仅保留一个副本
-def delete_duplicates(duplicates, update_status):
-    for file_path, _ in duplicates:
+def delete_duplicates(duplicate_files_list, update_status):
+    for file_path, _ in duplicate_files_list:
         try:
             os.remove(file_path)
             update_status(f"Deleted: {file_path}")
@@ -213,23 +215,28 @@ class FileManagementApp:
 
         thread = threading.Thread(target=self.find_and_show_duplicates, args=(dup_dir,))
         thread.start()
+
     # ------------------------------------
     # 查找并显示重复文件
     def find_and_show_duplicates(self, directory):
         self.update_dup_status("Searching for duplicates...")
-        _, duplicates = find_duplicates(directory)
-        if not duplicates:
+        files_hash, duplicate_files_list = find_duplicates(directory)
+
+        if not duplicate_files_list:
             self.update_dup_status("No duplicates found.")
             return
-        self.update_dup_status(f"Found {len(duplicates)} duplicate files.")
+
+        self.update_dup_status(f"Found {len(duplicate_files_list)} duplicate files.")
+
         # 显示重复文件细节并询问用户是否打开详细视图
-        detailed_info = "\n".join(f"File: {fp}, Hash: {fh}" for fp, fh in duplicates)
+        detailed_info = "\n".join(f"File: {fp}, Hash: {fh}" for fp, fh in duplicate_files_list)
         open_window = messagebox.askyesno("Duplicates Found", f"Duplicates details:\n{detailed_info}\n\nOpen detailed view?")
         if open_window:
-            self.show_duplicate_window(duplicates)
+            self.show_duplicate_window(duplicate_files_list)
+
     # ------------------------------------
     # 显示重复文件的详细窗口
-    def show_duplicate_window(self, duplicates):
+    def show_duplicate_window(self, duplicate_files_list):
         duplicate_window = tk.Toplevel(self.root)
         duplicate_window.title("Duplicate Files")
         duplicate_window.geometry("600x400")
@@ -237,27 +244,31 @@ class FileManagementApp:
         text_widget = tk.Text(duplicate_window, width=80, height=20)
         text_widget.pack(padx=10, pady=10)
 
-        for file_path, file_hash in duplicates:
+        for file_path, file_hash in duplicate_files_list:
             text_widget.insert(tk.END, f"File: {file_path}\nHash: {file_hash}\n\n")
         
         text_widget.config(state='disabled')
 
         confirm_delete = tk.Button(duplicate_window, text="Delete Duplicates", 
-                                   command=lambda: self.confirm_delete_duplicates(duplicates, duplicate_window))
+                                   command=lambda: self.confirm_delete_duplicates(duplicate_files_list, duplicate_window))
         confirm_delete.pack(pady=10)
+
     # ------------------------------------
     # 确认删除重复文件
-    def confirm_delete_duplicates(self, duplicates, window):
+    def confirm_delete_duplicates(self, duplicate_files_list, window):
         # 两次确认确保安全
         first_confirmation = messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete the duplicates, keeping one copy?")
         if not first_confirmation:
             return
+
         second_confirmation = messagebox.askyesno("Final Confirmation", "This action cannot be undone. Proceed?")
         if not second_confirmation:
             return
+
         # 进行删除
-        delete_duplicates(duplicates, self.update_dup_status)
+        delete_duplicates(duplicate_files_list, self.update_dup_status)
         window.destroy()
+
     # ------------------------------------
     # 更新重复文件查找状态
     def update_dup_status(self, message):
@@ -265,20 +276,21 @@ class FileManagementApp:
         self.dup_status_text.insert(tk.END, message + "\n")
         self.dup_status_text.see(tk.END)
         self.dup_status_text.config(state='disabled')
+
     # ------------------------------------
     # 复制文件
     def copy_files(self, src_paths, dest_path, update_status):
         duplicates = []
 
         existing_files_hash = {}
-        for root_dir, _, files in os.walk(dest_path):
+        for root_dir, sub_dirs, files in os.walk(dest_path):
             for file in files:
                 file_path = os.path.join(root_dir, file)
                 file_hash = calculate_hash(file_path)
                 existing_files_hash[file_hash] = file_path
 
         for src_path in src_paths:
-            for root_dir, _, files in os.walk(src_path):
+            for root_dir, sub_dirs, files in os.walk(src_path):
                 for file in files:
                     file_ext = os.path.splitext(file)[-1].lower()
                     for folder, extensions in FOLDER_MAP.items():
@@ -299,24 +311,27 @@ class FileManagementApp:
         if duplicates:
             duplicate_list = "\n".join(duplicates)
             messagebox.showinfo("Info", f"Detected duplicate files:\n{duplicate_list}")
+
     # ------------------------------------
     # 统计文件数量和大小
     def count_files_and_size(self, src_paths):
         file_count = 0
         total_size = 0
         for src_path in src_paths:
-            for root_dir, _, files in os.walk(src_path):
+            for root_dir, sub_dirs, files in os.walk(src_path):
                 for file in files:
                     if file.endswith(tuple(IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | OFFICE_EXTENSIONS)):
                         file_count += 1
                         file_path = os.path.join(root_dir, file)
                         total_size += os.path.getsize(file_path)
         return file_count, total_size
+
     # ------------------------------------
     # 检查可用空间
     def check_space_needed(self, total_size, dest_path):
         stats = shutil.disk_usage(dest_path)
         return total_size <= stats.free
+
 # ------------------------------------
 # 程序入口
 if __name__ == "__main__":
