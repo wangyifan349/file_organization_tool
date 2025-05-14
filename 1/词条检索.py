@@ -6,7 +6,6 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # 用于闪现消息
-
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -14,7 +13,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def initialize_database():
     conn = sqlite3.connect('database.db')
     c = conn.cursor()
-
     # 使用 FTS5 做全文搜索
     c.execute('''
     CREATE VIRTUAL TABLE IF NOT EXISTS entries USING fts5(
@@ -22,7 +20,6 @@ def initialize_database():
         content
     );
     ''')
-
     entries_data = [
         ("Photosynthesis", "Photosynthesis is the process used by plants..."),
         ("Theory of Relativity", "The theory of relativity is a scientific theory..."),
@@ -42,13 +39,28 @@ def query_database(query, args=(), one=False):
     conn.close()
     return (rv[0] if rv else None) if one else rv
 
+def calculate_similarity(query, text):
+    """简单的字符串相似性度量，可以替换成更复杂的算法"""
+    query_set = set(query.lower().split())
+    text_set = set(text.lower().split())
+    intersection = query_set.intersection(text_set)
+    union = query_set.union(text_set)
+    return len(intersection) / len(union) if union else 0
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     results = []
     if request.method == 'POST':
         search_term = request.form['search']
-        query = "SELECT * FROM entries WHERE entries MATCH ?"
-        results = query_database(query, (search_term,))
+        query = "SELECT rowid, * FROM entries WHERE entries MATCH ?"
+        entries = query_database(query, (search_term,))
+        # 计算每个条目的相似度
+        results = [(entry, calculate_similarity(search_term, entry['title'] + " " + entry['content']))
+                   for entry in entries]
+        # 按相似度排序
+        results.sort(key=lambda x: x[#citation-1](citation-1), reverse=True)
+        # 返回条目数据，但不包括相似度分数
+        results = [entry for entry, sim in results]
     return render_template_string(INDEX_PAGE_TEMPLATE, entries=results)
 
 @app.route('/entry/<int:entry_id>')
@@ -56,7 +68,6 @@ def entry_detail(entry_id):
     entry = query_database("SELECT * FROM entries WHERE rowid = ?", (entry_id,), one=True)
     if entry is None:
         return "Entry not found!", 404
-    # 查询相关条目
     related = query_database("SELECT rowid, title FROM entries WHERE rowid != ? LIMIT 5", (entry_id,))
     return render_template_string(DETAIL_PAGE_TEMPLATE, entry=entry, related_entries=related)
 
@@ -67,10 +78,8 @@ def upload_file():
         if password != 'yourpassword':  # 更改为实际密码
             flash('Incorrect Password!', 'danger')
             return redirect(url_for('upload_file'))
-
         file = request.files['file']
         filename = file.filename
-
         # 验证文件类型
         if filename.endswith('.csv'):
             filepath = os.path.join(UPLOAD_FOLDER, filename)
@@ -80,7 +89,6 @@ def upload_file():
                 for row in reader:
                     title, content = row
                     execute_insert(title, content)
-
         elif filename.endswith('.json'):
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
@@ -93,10 +101,8 @@ def upload_file():
         else:
             flash('Invalid file type! Use .csv or .json', 'danger')
             return redirect(url_for('upload_file'))
-
         flash('File uploaded and processed successfully!', 'success')
         return redirect(url_for('index'))
-
     return render_template_string(UPLOAD_PAGE_TEMPLATE)
 
 def execute_insert(title, content):
@@ -180,7 +186,6 @@ DETAIL_PAGE_TEMPLATE = '''
         <div id="entryContent" class="mb-4">{{ entry['content'] }}</div>
         <button onclick="copyToClipboard()" class="btn btn-outline-secondary">Copy Content</button>
         <a href="{{ url_for('index') }}" class="btn btn-primary ml-2">Back to Search</a>
-        
         {% if related_entries %}
         <hr>
         <h5>Related Entries</h5>
@@ -236,4 +241,4 @@ UPLOAD_PAGE_TEMPLATE = '''
 
 if __name__ == '__main__':
     initialize_database()
-    app.run(debug=True)
+    app.run(debug=False)
