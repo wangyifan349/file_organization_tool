@@ -106,15 +106,13 @@ def index():
 def entry_detail(entry_id):
     """
     详情页，显示条目完整标题与内容
-    同时显示5个关联条目列表（标题链接）
-    界面经过优化，内容区域较大，避免狭窄滚动条
+    内容区无边框，自动撑开，适合长文本显示
+    不显示相关词条
     """
     entry = query_database('SELECT * FROM entries WHERE rowid = ?', (entry_id,), one=True)
     if not entry:
         return "Entry not found", 404
-    # 随机相似条目，排除当前条目
-    related = query_database('SELECT rowid, title FROM entries WHERE rowid != ? LIMIT 5', (entry_id,))
-    return render_template_string(DETAIL_PAGE_TEMPLATE, entry=entry, related_entries=related)
+    return render_template_string(DETAIL_PAGE_TEMPLATE, entry=entry)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
@@ -215,7 +213,7 @@ INDEX_PAGE_TEMPLATE = '''
 </html>
 '''
 
-# 详情页模板，内容部分宽度放大，内容区去除边框，避免滚动条卡顿
+# 详情页模板，内容部分无边框，内容区自动撑开，适合显示长文本
 DETAIL_PAGE_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -231,15 +229,12 @@ DETAIL_PAGE_TEMPLATE = '''
     white-space: pre-wrap;
     background-color: #fff;
     padding: 25px 30px;
-    /* 去掉边框，更合适大内容显示 */
-    /* border: 1px solid #ccc; */
-    box-shadow: 0 0 5px rgba(0,0,0,0.1);
-    min-height: 300px;
-    overflow-wrap: break-word;
+    border: none;
+    box-shadow: none;
     margin-bottom: 20px;
     font-size: 1.1em;
     line-height: 1.5em;
-    border-radius: 8px;
+    border-radius: 0;
   }
 </style>
 <script>
@@ -259,18 +254,6 @@ function copyContent() {
   <div id="entryContent" tabindex="0" aria-label="Entry content">{{ entry['content'] }}</div>
   <button class="btn btn-outline-secondary mt-3" onclick="copyContent()" aria-label="Copy content to clipboard">Copy Content</button>
   <a href="{{ url_for('index') }}" class="btn btn-primary mt-3 ml-2">Back to Search</a>
-
-  {% if related_entries %}
-    <hr />
-    <h5>Related Entries</h5>
-    <ul class="list-unstyled">
-      {% for rel in related_entries %}
-        <li>
-          <a href="{{ url_for('entry_detail', entry_id=rel['rowid']) }}">{{ rel['title'] }}</a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
 </div>
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
