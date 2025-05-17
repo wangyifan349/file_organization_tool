@@ -1,9 +1,8 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, jsonify
 from fuzzywuzzy import fuzz
 
 app = Flask(__name__)
 
-# 数据字典
 data = {
     "相对论": {
         "简介": "相对论是阿尔伯特·爱因斯坦发展的理论框架，描述了物理学中的引力和运动。",
@@ -40,7 +39,6 @@ def search_data(query):
             results.append((topic_score, topic, info))
             continue
 
-        # 简单检查字符串/列表/字典的内容是否模糊匹配
         def check_content(val):
             if isinstance(val, str):
                 return fuzz.partial_ratio(query_lower, val.lower()) > 80
@@ -60,14 +58,15 @@ def search_data(query):
     results.sort(reverse=True, key=lambda x: x[0])
     return results
 
+# 网页搜索接口
 @app.route('/')
 def home():
     query = request.args.get('query', '').strip()
     results = search_data(query) if query else []
 
-    page = """
-    <!DOCTYPE html>
-    <html lang="zh-cn">
+    page = """ 
+    <!DOCTYPE html> 
+    <html lang="zh-cn"> 
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -126,15 +125,12 @@ def home():
                                     <h5 class="card-title">{{ topic }}</h5>
                                     <p><small>匹配度: {{ score }}</small></p>
                                     <ul>
-                                        {# 遍历info字典，只展开一层 #}
                                         {% for key, value in info.items() %}
                                             <li>
                                                 <strong>{{ key }}:</strong>
-                                                {# 判断value的类型，进行不同处理 #}
                                                 {% if value is string %}
                                                     {{ value }}
                                                 {% elif value is iterable %}
-                                                    {# 如果是列表或字典，简单展开一次 #}
                                                     <ul>
                                                     {% if value is mapping %}
                                                         {% for subkey, subval in value.items() %}
@@ -167,11 +163,9 @@ def home():
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            // 深色模式开关及记忆
             const toggleBtn = document.getElementById('toggleMode');
             const body = document.body;
             const themeKey = 'physicsDataTheme';
-
             function applyTheme(theme) {
                 if(theme === 'dark') {
                     body.classList.add('dark-mode');
@@ -183,15 +177,12 @@ def home():
                     toggleBtn.textContent = '切换到深色模式';
                 }
             }
-
-            // 初始化主题
             const savedTheme = localStorage.getItem(themeKey);
             if(savedTheme) {
                 applyTheme(savedTheme);
             } else {
                 applyTheme('light');
             }
-
             toggleBtn.addEventListener('click', () => {
                 if(body.classList.contains('dark-mode')) {
                     applyTheme('light');
@@ -201,16 +192,12 @@ def home():
                     localStorage.setItem(themeKey, 'dark');
                 }
             });
-
-            // 提交搜索时按钮显示正在加载
             const searchForm = document.getElementById('searchForm');
             const searchBtn = document.getElementById('searchBtn');
             searchForm.addEventListener('submit', () => {
                 searchBtn.disabled = true;
                 searchBtn.textContent = '搜索中...';
             });
-
-            // 搜索后页面自动滚动到结果区域
             {% if results %}
             window.onload = () => {
                 const resSection = document.querySelector('.search-results');
@@ -227,5 +214,66 @@ def home():
 
     return render_template_string(page, results=results, query=query)
 
+# 新增API接口，返回JSON数据，方便wget/curl调用
+@app.route('/api/search')
+def api_search():
+    query = request.args.get('query', '').strip()
+    if not query:
+        # 如果没有查询参数，返回错误信息
+        return jsonify({
+            "success": False,
+            "message": "缺少query参数"
+        }), 400
+
+    results = search_data(query)
+    # 整理数据结构，方便输出JSON
+    output = []
+    for score, topic, info in results:
+        output.append({
+            "score": score,
+            "topic": topic,
+            "info": info
+        })
+
+    return jsonify({
+        "success": True,
+        "query": query,
+        "count": len(output),
+        "results": output
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+"""
+wget -qO- "http://127.0.0.1:5000/api/search?query=相对论"
+
+curl "http://127.0.0.1:5000/api/search?query=量子"
+
+
+你会得到JSON格式的搜索结果，格式类似
+{
+  "success": true,
+  "query": "量子",
+  "count": 1,
+  "results": [
+    {
+      "score": 100,
+      "topic": "量子力学",
+      "info": {
+        "简介": "量子力学是研究微观粒子行为的物理理论。",
+        "关键人物": ["尼尔斯·玻尔", "维尔纳·海森堡", "薛定谔"],
+        "著名方程": "薛定谔方程",
+        "应用": ["量子计算机", "半导体"]
+      }
+    }
+  ]
+}
+
+"""
+
+
+
+
